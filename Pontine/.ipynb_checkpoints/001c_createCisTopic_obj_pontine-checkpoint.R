@@ -1,36 +1,57 @@
-## This scripts is to perform topic analysis using pycisTopic for robust meta-regulatory programs
-## The aim is to extract selected cells per class, conver to cistopic object,
-## run topic analysis for a number of topics, then identify top region per topic
-## splititng the data into two to obtain robust class specific topics
+## This script converts ATAC data from ArchR into cisTopic format
 library(reticulate)
 
-Sys.setenv(RETICULATE_PYTHON = "/home/loc/to/conda/envs/scenicplus/bin/python3.8")
-use_python("/home/loc/to/conda/envs/scenicplus/bin/python3.8")
+Sys.setenv(RETICULATE_PYTHON = "/path/to/conda/envs/scenicplus/bin/python3.8")
+use_python("/path/to/conda/envs/scenicplus/bin/python3.8")
 suppressPackageStartupMessages({
   library(ArchR)
   library(tidyverse)
   library(scater)
-  
 })
-
 addArchRGenome("hg38")
-addArchRThreads(threads = 7)
-cls = commandArgs(trailingOnly=TRUE)
-Split <- "B" # A or B
-#directories
-DIR_ATAC <- "~/ATACana/Outs/"
-setwd(DIR_ATAC)
-print(paste0("Performing cisTopic analysis for class: ",cls))
-####### Processing ArchR object to obtain the peak matrix for selected cells ####### 
-## 1. load metadata and select cells---------------
-load("~/extrafiles/plotdataHB_ATACv6.RData")
-pd <- plot.data.ATAC[plot.data.ATAC$Class==cls & plot.data.ATAC$SplitTopic==Split,]
-rm(plot.data.ATAC)
+
+DIR <- "~/ATACana/Outs/"
+DIR_SCENIC <- "~/SCENICOut/PN/"
+
+setwd(DIR)
+##-----------
+#Load the ATAC project
+load("extrafiles/plotdataHB_ATACv6_0404255step2.RData")
+pd <- data.frame(plot.data.ATAC)
+
+cl <- c("Glioblasts:Progenitor_AES","Neuroblasts_I:A1_AES",
+        "Neurons_I:PonNuc_def","Neurons_I:PonNuc_diff_early","Neurons_I:PonNuc_diff_late",
+        "Neurons_II:PonNuc_mat")
+pd <- pd[pd$Annotationlv2_step2 %in% cl,]
+cells <- row.names(pd)
+## 2. load ArchR project to obtain peak matrix-------------
+proj <- loadArchRProject(path = "comATACx/")
+proj <- proj[cells,]
+
+#
+print("Adding UMAP:")
+
+proj <- addUMAP( proj,
+                name = "UMAP_sub",
+                reducedDims = "IterativeLSI_int",
+                minDist = 0.2,
+                metric = "euclidean",
+                nNeighbors = 25,
+                force = T,
+                seed = 1,
+                scaleDims = F,
+                corCutOff = 0.75)
+del <- getEmbedding(proj,"UMAP_sub")
+colnames(del) <- c("iUMAP1","iUMAP2")
+pd <- cbind(pd,del[row.names(pd),])
+
+save(pd,file="~/SCENICOut/PN/pdPNatac.RData")
+## subse tto make CistopicObj
 #subset further, looks like 3k cells should be good
 cells <- c()
-cls <- unique(pd$Cluster_step2)
+cls <- unique(pd$Annotationlv2_step2)
 for(x in cls){
-  cells_sel <- row.names(pd)[pd$Cluster_step2==x]
+  cells_sel <- row.names(pd)[pd$Annotationlv2_step2==x]
   if(length(cells_sel)>3000){
     cells_sel <- sample(cells_sel,3000)
     cells <- c(cells,cells_sel)
@@ -40,17 +61,11 @@ for(x in cls){
   rm(cells_sel)
 }
 rm(x)
-
 pd <- pd[cells,]
-## further remove cells that are less than 10 cells
-tb <- data.frame(table(pd$Cluster_step2))
-tb <- as.character(tb$Var1)[tb$Freq>9]
-pd <- pd[pd$Annotationlv2_step2 %in% tb,]
+
+save(pd,file="~/SCENICOut/PN/pdPNatacdwn.RData")
 cells <- row.names(pd)
 
-## 2. load ArchR project to obtain peak matrix-------------
-proj <- loadArchRProject(path = "comATACx/")
-proj <- proj[cells,]
 PeakMatrix <- getMatrixFromProject(proj, useMatrix = "PeakMatrix")
 rm(proj)
 #robust peaks to subset to
@@ -84,7 +99,6 @@ a <- rownames(pd)
 b <- paste(a,"___cisTopic",sep = "")
 rownames(pd) <- b
 head(pd)
-out_loc <- paste0(args,"_",Split)
 ## 4. use python to generate cisTopic object ----------------
 repl_python()
 
@@ -96,19 +110,19 @@ import pycisTopic
 from scipy import io
 import pickle
 from pycisTopic.cistopic_class import *
-
-Clss = r.out_loc
-projDir = os.path.join("TopicMP/",Clss)
+  
+projDir = "/home/SCENICOut/PN/Cistopic"
 if not os.path.exists(projDir):
   os.makedirs(projDir)
 
+os.chdir(projDir)
 #
 count_mat = sparse.csr_matrix(r.PM, dtype="int")
 cn = r.a
 peaks=r.peaks
 #Create cisTopic object
-path_to_blacklist='/home/ann/hg38-blacklist.v2_noncanchr.bed'
-print("Creating pycistopic object from peak count matrix  ")
+path_to_blacklist='/home/extrafiles/hg38-blacklist.v2_noncanchr.bed'
+print(" Creating pycistopic object from peak count matrix  ")
 
 ##path to fragment file not used
 cistopic_obj = create_cistopic_object(fragment_matrix=count_mat,
@@ -122,9 +136,8 @@ cistopic_obj.add_cell_data(r.pd)
 print(cistopic_obj)
 #Save
 print(" Saving ...  ")
-pickle.dump(cistopic_obj, open(os.path.join(projDir,Clss+'_cistopic_obj.pkl'), 'wb'))
-
+pickle.dump(cistopic_obj,open(os.path.join(projDir,'PN_cistopic_obj.pkl'), 'wb'))
 
 exit
-print(paste0("Finished creating cisTopic object for: ",out_loc))
+print("Finished creating cisTopic object for: Pontine ")
 q()
