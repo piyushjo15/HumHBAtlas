@@ -6,7 +6,7 @@ suppressPackageStartupMessages({
 DIR = "~/SCENICOut/Class/"
 #read metadata
 setwd(DIR)
-Cls <- readLines("NA_Class.txt")
+Cls <- readLines("~/RNA/RNA_Class.txt")
 ##This script merges GRNs from all the classes
 ### collecting all the GRNs identified in all classes.
 class_grn_list <- list()
@@ -32,5 +32,5 @@ for( x in tfs){
   rm(del)
 }
 lengths(all_grns)
-save(all_grns,all_tfs, file = "AllGRNs_v2.RData")
+save(all_grns,all_tfs, file = "AllGRNs.RData")
 q()

@@ -1,0 +1,13 @@
+## To intialize LSTM model with a motif dictionary I am using JASPAR2024_CORE_vertebrates_non-redundant_pfms_meme.txt
+## but before that I have to cluster the motifs into families, which I am doing as below
+
+##Using the original matrix dictionary, I got an error, probably due to so many motifs. 879
+##So I had to firt obtain clusters of motifs from JASPAR2024. I first downloaded
+## individual meme files: JASPAR2024
+## remove two CTCF meme which are larger than 30
+## MA1930.2 MA1929.2
+## Then using RSAT clustering I obtained the clusters and represenative motifs
+Rscript RSAT/matrix-clustering.R -i JASPAR2024.txt -o Outs/extrafiles/JASPAR2024Cluster  -w 8 --minimal_output TRUE
+
+## converted the output root motif into meme
+Rscript RSAT/convert-matrix.R -i Outs/extrafiles/JASPAR2024Cluster_motifs/root_motifs/Root_motifs.tf -o Outs/extrafiles/JASPAR2024_root.meme --from tf --to meme -t TRUE
