@@ -64,7 +64,7 @@ colnames(sce) <- paste0(args[1],"_",colnames(sce))
 #initial filtering based on pct.mt and feature counts,
 # already filtered based on min_gene =500 in diem run
 x <- mean(sce$pct.mt)
-z <- x+ 1*mad(sce$pct.mt)
+z <- x+ 1*sd(sce$pct.mt)
 if (z <2) {z=2}
 ##based on boxplot distribution
 co <- quantile(sce$nUMIs, 0.975)
